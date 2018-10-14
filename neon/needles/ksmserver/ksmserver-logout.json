@@ -1,0 +1,24 @@
+{
+  "area": [
+    {
+      "height": 33,
+      "match": 70,
+      "type": "match",
+      "width": 108.33333333333337,
+      "xpos": 421,
+      "ypos": 525
+    },
+    {
+      "height": 24,
+      "match": 95,
+      "type": "match",
+      "width": 107,
+      "xpos": 393,
+      "ypos": 571
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "ksmserver-logout"
+  ]
+}

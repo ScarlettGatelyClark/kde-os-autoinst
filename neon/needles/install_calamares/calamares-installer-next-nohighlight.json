@@ -1,18 +1,17 @@
 {
   "area": [
     {
-      "height": 28,
+      "height": 41,
       "match": 95,
       "type": "match",
-      "width": 84,
-      "xpos": 836,
-      "ypos": 621
+      "width": 93,
+      "xpos": 829,
+      "ypos": 676
     }
   ],
   "properties": [],
   "tags": [
     "calamares-installer-next",
-    "calamares-installer-next-nohighlight",
-    "ENV-DISTRI-neon"
+    "calamares-installer-next-nohighlight"
   ]
 }

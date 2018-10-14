@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 #
-# Copyright (C) 2017 Harald Sitter <sitter@kde.org>
+# Copyright (C) 2017-2018 Harald Sitter <sitter@kde.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -22,119 +22,221 @@ require 'fileutils'
 require 'json'
 require 'jenkins_junit_builder'
 
+require_relative 'result'
+
 # JUnit converter.
 class JUnit
   BUILD_URL = ENV.fetch('BUILD_URL', nil)
+  REV = Dir.chdir(File.realpath("#{__dir__}/../")) do
+    `git rev-parse HEAD`.strip
+  end
 
-  # Case wrapper
   class Case < JenkinsJunitBuilder::Case
     RESULT_MAP = {
-      'ok' => JenkinsJunitBuilder::Case::RESULT_PASSED,
-      'fail' => JenkinsJunitBuilder::Case::RESULT_FAILURE
+      ok: JenkinsJunitBuilder::Case::RESULT_PASSED,
+      fail: JenkinsJunitBuilder::Case::RESULT_FAILURE,
+      unknown: JenkinsJunitBuilder::Case::RESULT_PASSED
       # => JenkinsJunitBuilder::Case::RESULT_SKIPPED
     }.freeze
 
-    EXPECTATION_URL = 'https://raw.githubusercontent.com/apachelogger/kde-os-autoinst/master'.freeze
+    REPO = 'apachelogger/kde-os-autoinst'.freeze
+    EXPECTATION_URL =
+      format('https://raw.githubusercontent.com/%s/%s',
+             REPO,
+             REV && !REV.empty? ? REV : 'master').freeze
+
+    attr_reader :detail
 
     def initialize(detail)
       super()
-      # FIXME: we are fetching the tags here because we have no way to either
-      # iterate on the tags or the needles right now. Also, the needle format
-      # is somewhat inconsistent.
-      # Sometimes it is a flat with needle being a property of the detail
-      # and other times it is a needles array with multiple needles that have
-      # a name property.
-      # Not entirely sure how to best handle this.
-      self.name = detail.fetch('tags').fetch(0)
-      self.result = RESULT_MAP.fetch(detail.fetch('result'))
-      system_err.message = JSON.pretty_generate(detail)
-      return unless BUILD_URL
-      [detail['screenshot'], detail['text']].compact.each do |artifact|
-        system_out << "#{artifact_info(artifact, detail)}\n\n"
+      @detail = detail
+      self.result = translate_result(detail.result)
+      if result == JenkinsJunitBuilder::Case::RESULT_PASSED &&
+         detail.dent
+        # iff this detail has a dent mark it skipped in junit; best
+        # representation we have.
+        self.result = JenkinsJunitBuilder::Case::RESULT_SKIPPED
       end
+      system_err.message = JSON.pretty_generate(detail.data)
     end
 
-    def artifact_info(artifact, detail)
-      case result
-      when JenkinsJunitBuilder::Case::RESULT_PASSED
-        return artifact_info_passed(artifact, detail)
-      when JenkinsJunitBuilder::Case::RESULT_FAILURE
-        return artifact_info_failure(artifact, detail)
-      end
-      raise
-    rescue KeyError => e
-      # A detail raised a keyerror. Rescue it with a default message.
-      warn e
-      artifact_url(artifact)
+    def translate_result(r)
+      RESULT_MAP.fetch(detail.result)
     end
 
     def artifact_url(artifact)
-      "#{BUILD_URL}/artifact/wok/testresults/#{artifact}"
+      "#{BUILD_URL}/artifact/testresults/#{artifact}"
+    end
+  end
+
+  class TextDetailCase < Case
+    def initialize(detail)
+      super
+      self.name = detail.title
+      system_out << artifact_url(detail.text)
+    end
+  end
+
+  class SoftFailureDetailCase < Case
+    def initialize(detail)
+      # Soft failures are difficult in that their result field is in fact
+      # a screenshot blob. We always mark them skipped and do our best
+      # to give useful data.
+      super
+      self.name = detail.title
+      system_out << <<-STDOUT
+We recorded a soft failure, this isn't a failed assertion but rather
+indicates that something is (temporarily) wrong with the expecations.
+This event was programtically created, check the code of the test case.
+#{artifact_url(detail.text)}
+#{artifact_url(detail.result.screenshot)}
+STDOUT
     end
 
-    def artifact_info_passed(artifact, detail)
-      <<-EOF
-#{artifact_url(artifact)}
-matched:
-#{EXPECTATION_URL}/#{detail.fetch('json').sub('.json', '.png')}
-      EOF
+    # always mark skipped
+    def translate_result(_r)
+      JenkinsJunitBuilder::Case::RESULT_SKIPPED
     end
+  end
 
-    def artifact_info_failure(artifact, detail)
-      expected_urls = detail.fetch('needles').collect do |needle|
-        "#{EXPECTATION_URL}/#{needle.fetch('json').sub('.json', '.png')}"
+  class ScreenshotDetailCase < Case
+    def initialize(detail)
+      super
+      self.name = 'screenshot_without_match'
+      system_out << artifact_url(detail.screenshot)
+    end
+  end
+
+  class NeedleDetailCase < Case
+    def initialize(detail)
+      super
+      self.name = 'unmatched_needle'
+      if detail.result == :unknown
+        system_out << "This was a check but not an assertion!!!\n"
       end
-      <<-EOF
-#{artifact_url(artifact)}
-expected any of:
+      case detail.result
+      when :ok then system_out << ok_needles_info
+      when :fail, :unknown then system_out << error_needles_info
+      end
+    end
+
+    def ok_needles_info
+      <<-STDOUT
+#{artifact_url(detail.screenshot)}
+matched:
+#{EXPECTATION_URL}/#{detail.json.sub('.json', '.png')}
+      STDOUT
+    end
+
+    def error_needles_info
+      return no_needles_info if detail.needles.empty?
+      expected_urls = detail.needles.collect do |needle|
+        "#{EXPECTATION_URL}/#{needle.json.sub('.json', '.png')}"
+      end
+      <<-STDOUT
+To satisfy a test for the tags '#{detail.tags}' we checked the screen and found
+#{artifact_url(detail.screenshot)}
+but expected any of:
 #{expected_urls.join("\n")}
-      EOF
+      STDOUT
+    end
+
+    def no_needles_info
+      <<-STDOUT
+We wanted to test for tags '#{detail.tags}' but found no needles to back these
+tags. Chances are there is no needle, or the tags are misspelled.
+(Other options apply but are less likely obviously.)
+
+#{artifact_url(detail.screenshot)}
+      STDOUT
+    end
+  end
+
+  class NeedleMatchDetailCase < NeedleDetailCase
+    def initialize(detail)
+      super
+      self.name = detail.needle
     end
   end
 
   # Suite wrapper
   class Suite < JenkinsJunitBuilder::Suite
-    def initialize(test_file)
+    BAD_RESULTS = [JenkinsJunitBuilder::Case::RESULT_FAILURE,
+                   JenkinsJunitBuilder::Case::RESULT_ERROR].freeze
+
+    def initialize(test_file, name:)
       super()
-      data = JSON.parse(File.read(test_file))
-      self.name = File.basename(test_file).match(/result-(.+)\.json/)[1]
+      @failed = false
+      result = OSAutoInst::ResultSuite.new(test_file)
+      self.name = name
       self.package = name
       self.report_path = "junit/#{name}.xml"
-      casify(data)
+      casify(result)
     end
 
-    def casify(data)
-      data.fetch('details').each do |detail|
-        # Skip unknown results.
-        next if detail.fetch('result') == 'unk'
-        # Discard bits that aren't related to a needle tag.
-        # FIXME: text items can have a title but no tags. should fall back?
-        next unless detail['tags']
-        c = Case.new(detail)
+    def failed?
+      @failed
+    end
+
+    def add_case(c)
+      @failed ||= BAD_RESULTS.include?(c.result)
+      super
+    end
+
+    def casify(result)
+      result.details.each do |detail|
+        case_klass = detail.class.to_s.split('::')[-1] + 'Case'
+        c = JUnit.const_get(case_klass).new(detail)
         c.name = format('%03d_%s', @cases.size, c.name)
         add_case(c)
       end
-      add_case(meta_case(data))
+      add_case(meta_case(result))
     end
 
-    def meta_case(data)
+    def meta_case(result)
       c = JenkinsJunitBuilder::Case.new
       c.name = 'all'
-      c.result = Case::RESULT_MAP.fetch(data.fetch('result'))
+      c.result = Case::RESULT_MAP.fetch(result.result)
       c
     end
   end
 
-  def self.from_openqa(testresults_dir)
+  attr_reader :testresults_dir
+
+  def initialize(testresults_dir)
+    @testresults_dir = testresults_dir
+    @failed = false
     FileUtils.rm_rf('junit') if Dir.exist?('junit')
     Dir.mkdir('junit')
-    ran = false
-    Dir.glob("#{testresults_dir}/result-*.json").each do |test_file|
-      ran = true
-      suite = Suite.new(test_file)
+  end
+
+  def failed?
+    @failed
+  end
+
+  def write_all
+    order = OSAutoInst::TestOrder.new(testresults_dir: testresults_dir)
+    if order.tests.empty?
+      raise "No tests run; order array is empty in #{order.file}"
+    end
+    order.tests.each_with_index do |test, i|
+      name = test.fetch(:name)
+      test_file = test.fetch(:file)
+      assert_test_file(name, test_file)
+      suite = Suite.new(test_file, name: format('%03d_%s', i, name))
+      @failed ||= suite.failed?
       suite.write_report_file
     end
-    return if ran
-    raise "Could not find a single test file: #{testresults_dir}/result-*.json!"
+  end
+
+  def assert_test_file(name, file)
+    return if File.exist?(file)
+    raise "Test '#{name}' has a missing json file; it probably failed entirely"
+  end
+
+  def self.from_openqa(testresults_dir)
+    unit = new(testresults_dir)
+    unit.write_all
+    raise 'It seems some tests have not quite passed' if unit.failed?
   end
 end

@@ -1,0 +1,17 @@
+{
+  "area": [
+    {
+      "height": 84,
+      "match": 95,
+      "type": "match",
+      "width": 480,
+      "xpos": 161,
+      "ypos": 54
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "grub",
+    "ENV-UEFI"
+  ]
+}

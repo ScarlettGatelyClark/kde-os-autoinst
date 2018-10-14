@@ -1,0 +1,49 @@
+{
+  "area": [
+    {
+      "height": 67,
+      "match": 90,
+      "type": "match",
+      "width": 434,
+      "xpos": 250,
+      "ypos": 200
+    },
+    {
+      "height": 28,
+      "match": 90,
+      "type": "match",
+      "width": 83,
+      "xpos": 265,
+      "ypos": 416
+    },
+    {
+      "height": 35,
+      "match": 80,
+      "type": "match",
+      "width": 299,
+      "xpos": 323,
+      "ypos": 374
+    },
+    {
+      "height": 29,
+      "match": 90,
+      "type": "match",
+      "width": 82,
+      "xpos": 667,
+      "ypos": 417
+    },
+    {
+      "height": 31,
+      "match": 95,
+      "type": "match",
+      "width": 85,
+      "xpos": 577,
+      "ypos": 415
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "ubuntu-upgrade-polkit"
+  ]
+}
+

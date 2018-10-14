@@ -1,17 +1,33 @@
 {
   "area": [
     {
-      "height": 448,
+      "height": 62,
+      "match": 95,
+      "type": "match",
+      "width": 168,
+      "xpos": 193,
+      "ypos": 306
+    },
+    {
+      "height": 20,
+      "match": 95,
+      "type": "match",
+      "width": 128,
+      "xpos": 485,
+      "ypos": 347
+    },
+    {
+      "height": 264,
       "match": 95,
       "type": "match",
       "width": 668,
-      "xpos": 171,
-      "ypos": 140
+      "xpos": 193,
+      "ypos": 34
     }
   ],
   "properties": [],
   "tags": [
-    "calamares-installer-summary",
-    "ENV-DISTRI-neon"
+    "calamares-installer-summary"
   ]
 }
+

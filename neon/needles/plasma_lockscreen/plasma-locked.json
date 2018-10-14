@@ -28,6 +28,8 @@
   "properties": [],
   "tags": [
     "plasma-locked",
-    "ENV-DISTRI-neon"
+    "ENV-TYPE-devedition-gitunstable",
+    "ENV-TYPE-useredition",
+    "ENV-TYPE-devedition-gitstable"
   ]
 }

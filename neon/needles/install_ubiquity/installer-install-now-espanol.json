@@ -1,0 +1,18 @@
+{
+  "area": [
+    {
+      "type": "match",
+      "xpos": 800,
+      "ypos": 510,
+      "width": 110,
+      "height": 50,
+      "match": 90
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "installer-install-now-espanol",
+    "installer-install-now",
+    "ENV-NONENGLISH"
+  ]
+}

@@ -5,13 +5,12 @@
       "match": 95,
       "type": "match",
       "width": 652,
-      "xpos": 181,
-      "ypos": 186
+      "xpos": 200,
+      "ypos": 127
     }
   ],
   "properties": [],
   "tags": [
-    "calamares-installer-disk-erase",
-    "ENV-DISTRI-neon"
+    "calamares-installer-disk-erase"
   ]
 }

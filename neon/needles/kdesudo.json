@@ -1,0 +1,40 @@
+{
+  "area": [
+    {
+      "height": 23.714285714285808,
+      "match": 90,
+      "type": "match",
+      "width": 153,
+      "xpos": 435,
+      "ypos": 256.28571428571433
+    },
+    {
+      "height": 37.14285714285711,
+      "match": 90,
+      "type": "match",
+      "width": 64,
+      "xpos": 315,
+      "ypos": 382
+    },
+    {
+      "height": 13.333333333333371,
+      "match": 90,
+      "type": "match",
+      "width": 132,
+      "xpos": 334,
+      "ypos": 309.33333333333326
+    },
+    {
+      "height": 43,
+      "match": 90,
+      "type": "match",
+      "width": 64,
+      "xpos": 401.6952380952381,
+      "ypos": 384.409523809524
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "kdesudo"
+  ]
+}

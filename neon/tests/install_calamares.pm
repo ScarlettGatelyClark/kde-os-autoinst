@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017 Harald Sitter <sitter@kde.org>
+# Copyright (C) 2016-2018 Harald Sitter <sitter@kde.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -16,35 +16,45 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use base "basetest";
+use base "livetest_neon";
 use strict;
 use testapi;
 
+# Enable debugging of calamares.
+# NB: this needs to be explicitly called and this cannot be enabled via ENV
+#   because the default expectation should not ever be to run in debug mode.
+#   There have been issues that do not appear in debug mode, so testing MUST
+#   be using !debug. And, it is easier to forget undoing an ENV change, and when
+#   it is forgotten it may not be obvious where it is set.
+sub enable_cala_debug {
+    select_console 'log-console';
+    {
+        assert_script_run 'sed -ri \'s%^Exec=(.+)%Exec=\1 -d%g\' ~/Desktop/calamares.desktop';
+    }
+    select_console 'x11';
+}
+
 sub run {
+    my ($self) = shift;
+    $self->boot;
+
     # Divert installation data to live data.
     my $user = $testapi::username;
     my $password = $testapi::password;
     $testapi::username = 'neon';
     $testapi::password = '';
 
-    # wait for bootloader to appear
-    assert_screen 'bootloader', 30;
-
-    # wait for the desktop to appear
-    assert_screen 'live-desktop', 180;
-    wait_idle; # Make sure system has settled down a bit.
-
-    # Update the live system so we have an up to date calamares.
     select_console 'log-console';
-    assert_script_run 'sudo apt-get update';
-    assert_script_run 'sudo apt-get -y install calamares libkpmcore5 kpmcore';
+    {
+        assert_script_run 'wget ' . data_url('geoip_service_calamares.rb'),  16;
+        script_sudo 'systemd-run ruby `pwd`/geoip_service_calamares.rb', 16;
+    }
     select_console 'x11';
 
-    assert_screen 'live-desktop', 180;
-    wait_idle; # Make sure system has settled down a bit.
+    $self->maybe_switch_offline;
 
     # Installer
-    assert_and_click "calamares-installer-icon";
+    assert_and_click 'calamares-installer-icon';
 
     assert_screen "calamares-installer-welcome", 30;
     assert_and_click "calamares-installer-next";
@@ -70,36 +80,57 @@ sub run {
     assert_screen "calamares-installer-user", 16;
     type_string $user;
     assert_screen "calamares-installer-user-user", 16;
-    send_key "tab", 1; # username field
-    send_key "tab", 1; # hostname field
-    send_key "tab", 1; # 1st password field
+    send_key "tab"; # username field
+    send_key "tab"; # hostname field
+    send_key "tab"; # 1st password field
     type_string $password;
-    send_key "tab", 1; # 2nd password field
+    send_key "tab"; # 2nd password field
     type_string $password;
     # all fields filled (not matching hostname field)
     assert_screen "calamares-installer-user-complete", 16;
     assert_and_click "calamares-installer-next";
 
     assert_screen "calamares-installer-summary", 16;
-    assert_and_click "calamares-installer-next";
+    assert_and_click "calamares-installer-install";
 
     assert_screen "calamares-installer-show", 16;
 
     # Let install finish and restart
-    assert_screen "calamares-installer-restart", 640;
+    assert_screen "calamares-installer-restart", 1200;
+
+    select_console 'log-console';
+    {
+        # Make sure networking is on (we disable it during installation).
+        $self->online;
+        $self->upload_calamares_logs;
+    }
+    select_console 'x11';
+
     assert_and_click "calamares-installer-restart-now";
 
-    assert_screen "live-remove-medium", 60;
-    send_key "ret";
+    $self->live_reboot;
 
     reset_consoles;
-
-    # Eventually we should end up in sddm
-    assert_screen 'sddm', 180;
 
     # Set instalation data.
     $testapi::username = $user;
     $testapi::password = $password;
+}
+
+sub upload_calamares_logs {
+    # Uploads end up in wok/ulogs/
+    # Older calamari used this path:
+    upload_logs '/home/neon/.cache/Calamares/calamares/Calamares.log', failok => 1;
+    # Newer this one:
+    upload_logs '/home/neon/.cache/Calamares/session.log', failok => 1;
+    # Even newer:
+    upload_logs '/home/neon/.cache/calamares/session.log', failok => 1;
+}
+
+sub post_fail_hook {
+    my ($self) = shift;
+    $self->SUPER::post_fail_hook;
+    $self->upload_calamares_logs;
 }
 
 sub test_flags {
@@ -107,24 +138,7 @@ sub test_flags {
     # 'fatal' - whole test suite is in danger if this fails
     # 'milestone' - after this test succeeds, update 'lastgood'
     # 'important' - if this fails, set the overall state to 'fail'
-    return { important => 1 };
-}
-
-sub post_fail_hook {
-    my ($self) = shift;
-    $self->SUPER::post_fail_hook;
-
-    select_console 'log-console';
-
-    # Older versions do not come with curl pre installed.
-    assert_script_run 'sudo apt-get update';
-    assert_script_run 'sudo apt-get install curl';
-
-    # Uploads end up in wok/ulogs/
-    assert_script_run 'journalctl --no-pager -b 0 > /tmp/journal.txt';
-    upload_logs '/tmp/journal.txt';
-    assert_script_sudo 'tar cfJ /tmp/installer.tar.xz /var/log/installer';
-    upload_logs '/tmp/installer.tar.xz';
+    return { important => 1, fatal => 1 };
 }
 
 1;

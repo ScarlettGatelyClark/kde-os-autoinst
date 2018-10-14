@@ -1,0 +1,21 @@
+{
+  "area": [
+    {
+      "height": 353,
+      "match": 95,
+      "type": "match",
+      "width": 1024,
+      "xpos": 0,
+      "ypos": 414
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "plasma-locked-idle",
+    "plasma-locked",
+    "ENV-TYPE-devedition-gitunstable",
+    "plasma-locked-idle-wallpaper",
+    "ENV-TYPE-useredition",
+    "ENV-TYPE-devedition-gitstable"
+  ]
+}

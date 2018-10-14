@@ -29,7 +29,31 @@ import privateneedler 1.0 as Needler
 ApplicationWindow {
     property string path
 
+    MessageDialog {
+        property string base
+
+        id: missingMasterTagDialog
+        title: "Missing master tag"
+        text: "All needles must be tagged with their basename, this needle is missing it though. This could mean that you misspelled it or simply forgot. <br/>Should I add it automatically?"
+        informativeText: ""
+        icon: StandardIcon.Critical
+        standardButtons: StandardButton.Yes | StandardButton.No
+        onYes: {
+            console.debug("ADDING " + base)
+            selectorModel.tags.push(base)
+            selectorModel.tags = selectorModel.tags // Reassign to trigger reload
+            save()
+        }
+    }
+
     function save() {
+        // If the basename isn't in the tags we'll wanna raise a warning.
+        var base = baseName(path)
+        if (selectorModel.tags.indexOf(base) < 0) {
+            missingMasterTagDialog.base = base
+            missingMasterTagDialog.visible = true
+            return
+        }
         write(selectorModel.toJSON())
     }
 
@@ -42,27 +66,26 @@ ApplicationWindow {
         return str;
     }
 
+    function baseName(str)
+    {
+       var str = new String(str) // Make sure its a stringy.
+       return str.substring(str.lastIndexOf('/') + 1);
+    }
+
     function load(url) {
         path = withoutExtension(url.toString())
-        var json = withoutExtension(path) + ".json"
-        var png = withoutExtension(path) + ".png"
+        var json = path + ".json"
+        var png = path + ".png"
         console.debug("loading " + json + " " + png)
         selectorModel.loadFromJSON(json)
         image.source = ""
         image.source = png
     }
 
-    function writeData(path, data) {
-        var xhr = new XMLHttpRequest;
-        xhr.open("PUT", path);
-        xhr.send(data);
-    }
-
     function write(jsonData) {
         console.debug(path)
-        var xhr = new XMLHttpRequest;
-        xhr.open("PUT", path + ".json");
-        xhr.send(jsonData);
+        Needler.Application.write(path + ".json", jsonData)
+        // Don't XHR https://bugs.kde.org/show_bug.cgi?id=390328
     }
 
     width: 1290
@@ -106,25 +129,57 @@ ApplicationWindow {
         Selector { model: selectorModel }
     }
 
+    FontMetrics {
+        id: fontMetrics
+    }
+
     RowLayout {
         anchors.fill: parent
+
         ColumnLayout {
-            Text { text: "Properties"; color: palette.text }
-            TextArea {
-                placeholderText: "..."
-//                wrapMode: TextEdit.Wrap
-                text: selectorModel.properties
-                // FIXME: these are binding loops
-                // would need async timer or something
-                onTextChanged: { selectorModel.properties = text.split(',') }
+            Layout.margins: fontMetrics.height / 4
+
+            Label { text: "Properties" }
+            ColumnLayout {
+                PropertyCheckBox {
+                    key: 'workaround'
+                    model: selectorModel.properties
+                }
             }
-            Text { text: "Tags"; color: palette.text }
-            TextArea {
-                placeholderText: "..."
-//                wrapMode: TextEdit.Wrap
-                text: selectorModel.tags.join(',')
-                onTextChanged: { selectorModel.tags = text.split(',') }
+
+            Label { text: "Tags" }
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: "Add New Tag..."
+                selectByMouse: true
+                onAccepted: {
+                    // FIXME: should probably move to model var[] doesn't propagate
+                    // push or slice to the view for reloading
+                    selectorModel.tags.push(text)
+                    selectorModel.tags = selectorModel.tags // Reassign to trigger reload
+                    clear()
+                }
             }
+            ListView {
+                Layout.preferredHeight: contentHeight
+                Layout.fillWidth: true
+
+                clip: true
+                model: selectorModel.tags
+                ScrollBar.vertical: ScrollBar { }
+
+                delegate: Tag {
+                    text: modelData
+                    width: ListView.view.width
+                    onRemove: {
+                        selectorModel.tags.splice(index, 1)
+                        selectorModel.tags = selectorModel.tags // Reassign to trigger reload
+                    }
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+
             RowLayout {
                 Button {
                     text: "Save"
@@ -263,14 +318,16 @@ ApplicationWindow {
                             var xhr = new XMLHttpRequest;
                             xhr.open("GET", path);
                             xhr.onreadystatechange = function() {
-                                if (xhr.readyState == XMLHttpRequest.DONE) {
+                                if (xhr.readyState === XMLHttpRequest.DONE) {
                                     var a = JSON.parse(xhr.responseText);
                                     for (var i in a.area) {
                                         console.debug("area " + a.area[i])
                                         var select = selector.createObject()
                                         select.fromObject(a.area[i])
 
-                                        if (i == a.area.length - 1) { // last
+                                        // i isn't a number. I don't know why. Javascript :@
+                                        if (Number(i) === a.area.length - 1) { // last
+                                            console.log("clickarea!")
                                             select.clickArea = true
                                         }
                                         selectorModel.append(select)
@@ -306,7 +363,10 @@ ApplicationWindow {
                                 properties: selectorModel.properties,
                                 tags: selectorModel.tags
                             }
-                            var json = JSON.stringify(needle, null, 2) + "\n"
+                            var json = JSON.stringify(needle, null, 2)
+                            if (!json.endsWith("\n")) {
+                                json += "\n"
+                            }
                             console.debug(json)
                             return json
                         }

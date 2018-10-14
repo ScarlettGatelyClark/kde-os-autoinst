@@ -1,17 +1,16 @@
 {
   "area": [
     {
-      "height": 470,
+      "height": 547,
       "match": 95,
       "type": "match",
       "width": 625,
-      "xpos": 178,
-      "ypos": 140
+      "xpos": 200,
+      "ypos": 122
     }
   ],
   "properties": [],
   "tags": [
-    "calamares-installer-disk",
-    "ENV-DISTRI-neon"
+    "calamares-installer-disk"
   ]
 }

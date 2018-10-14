@@ -1,17 +1,16 @@
 {
   "area": [
     {
-      "height": 471,
+      "height": 605,
       "match": 90,
       "type": "match",
-      "width": 841,
-      "xpos": 178,
-      "ypos": 149
+      "width": 827,
+      "xpos": 194,
+      "ypos": 72
     }
   ],
   "properties": [],
   "tags": [
-    "calamares-installer-keyboard",
-    "ENV-DISTRI-neon"
+    "calamares-installer-keyboard"
   ]
 }

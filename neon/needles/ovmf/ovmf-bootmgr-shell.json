@@ -1,0 +1,16 @@
+{
+  "area": [
+    {
+      "height": 20.400000000000034,
+      "match": 95,
+      "type": "match",
+      "width": 163,
+      "xpos": 0,
+      "ypos": 248.79999999999995
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "ovmf-bootmgr-shell"
+  ]
+}

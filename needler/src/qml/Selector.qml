@@ -23,6 +23,8 @@ import QtQuick.Controls 2.2
 import QtQml.Models 2.2
 import QtQuick.Layouts 1.3
 
+import org.kde.kirigami 2.3 as Kirigami
+
 Rectangle {
     id: rect
 
@@ -76,6 +78,7 @@ Rectangle {
         } else if (x > image.width) {
             x = image.width - minimumOffset
         }
+        x = Math.round(x)
     }
 
     onYChanged: {
@@ -84,12 +87,14 @@ Rectangle {
         } else if (y > image.height) {
             y = image.height - minimumOffset
         }
+        y = Math.round(y)
     }
 
     onWidthChanged: {
         if (x + width > image.width) {
             width = image.width - x
         }
+        width = Math.round(width)
         dimensionHint()
     }
 
@@ -97,13 +102,23 @@ Rectangle {
         if (y + height > image.height) {
             height = image.height - y
         }
+        height = Math.round(height)
         dimensionHint()
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+
+        ToolTip.delay: 1500
+        ToolTip.visible: containsMouse
+        ToolTip.text: "x: %1\ny: %2\nw: %3\nh: %4\ntype: %5".arg(rect.x).arg(rect.y).arg(rect.width).arg(rect.height).arg(type)
     }
 
     Rectangle {
         id: fill
         anchors.fill: parent
-        color:  clickArea ? "yellow" : "steelblue"
+        color:  (type === "exclude") ? "red" : (clickArea ? "yellow" : "steelblue")
         opacity: 0.6
     }
 
@@ -136,23 +151,28 @@ Rectangle {
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
 
-        contentItem: ColumnLayout {
-            RowLayout {
-                Label { text: "type" }
-                TextField { id:typeField; text: rect.type }
+        Kirigami.FormLayout {
+            ComboBox {
+                id: typeBox
+                Kirigami.FormData.label: "Type:"
+                // Fixed types.
+                // match: pixel matching
+                // ocr: run through optical character recogniation
+                // exclude: exclude from reference. not sure how this works
+                model: [ 'match', 'ocr', 'exclude' ]
+
             }
-            RowLayout {
-                Label { text: "match" }
-                TextField {
-                    id:matchField
-                    text: rect.match
-                    validator: IntValidator{ bottom: 0; top: 100; }
-                }
+
+            TextField {
+                id: matchField
+                Kirigami.FormData.label: "Similarity:"
+                text: rect.match
+                validator: IntValidator{ bottom: 0; top: 100; }
             }
         }
 
         onAccepted: {
-            rect.type = typeField.text
+            rect.type = typeBox.currentText
             rect.match = parseFloat(matchField.text)
         }
     }

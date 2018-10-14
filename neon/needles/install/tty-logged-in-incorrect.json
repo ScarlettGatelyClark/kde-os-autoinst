@@ -1,0 +1,19 @@
+{
+  "area": [
+    {
+      "height": 12,
+      "match": 95,
+      "type": "match",
+      "width": 96,
+      "xpos": 0,
+      "ypos": 339
+    }
+  ],
+  "tags": [
+    "tty-logged-in-live",
+    "tty-logged-in",
+    "log-console",
+    "tty-logged-in-incorrect"
+  ]
+}
+

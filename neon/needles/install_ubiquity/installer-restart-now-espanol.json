@@ -1,0 +1,18 @@
+{
+  "area": [
+    {
+      "height": 31,
+      "match": 95,
+      "type": "match",
+      "width": 90,
+      "xpos": 508,
+      "ypos": 395
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "installer-restart-now-espanol",
+    "installer-restart-now",
+    "ENV-NONENGLISH"
+  ]
+}

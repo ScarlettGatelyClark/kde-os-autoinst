@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 #
-# Copyright (C) 2014-2017 Harald Sitter <sitter@kde.org>
+# Copyright (C) 2014-2018 Harald Sitter <sitter@kde.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -27,21 +27,67 @@ DIST = ENV.fetch('DIST')
 JOB_NAME = ENV.fetch('JOB_NAME')
 PWD_BIND = ENV.fetch('PWD_BIND', '/workspace')
 
+devices = []
 dev_kvm = {
   PathOnHost: '/dev/kvm',
   PathInContainer: '/dev/kvm',
-  CgroupPermissions: 'mrw'
+  CgroupPermissions: 'rwm'
 }
+devices << dev_kvm if File.exist?(dev_kvm[:PathOnHost])
 
-c = CI::Containment.new(JOB_NAME.gsub('%2F', '/').gsub('/','-'),
+binds = ["#{Dir.pwd}:#{PWD_BIND}"]
+os_auto_inst_dir = '/srv/os-autoinst'
+if File.exist?(os_auto_inst_dir)
+  # Read-only bind our base disks if they exist.
+  # rubocop:disable Style/FormatStringToken
+  binds << format('%s:%s:ro', os_auto_inst_dir, os_auto_inst_dir)
+  # rubocop:enable Style/FormatStringToken
+end
+
+# Hugepages is a directory so docker will complain when passing it as a device,
+# instead use it as a volume.
+hugepages = '/dev/hugepages'
+dev_hugepages = "#{hugepages}:#{hugepages}"
+binds << dev_hugepages if File.exist?(hugepages)
+
+# Wrokaround tooling deployment broken making read-only unsupported.
+# http://mobile.neon.pangea.pub:8080/view/mgmt/job/mgmt_tooling_progenitor/
+# http://mobile.neon.pangea.pub:8080/view/mgmt/job/mgmt_tooling_test/
+module CI
+  # Monkey patch.
+  class DirectBindingArray
+    def self.volume_specification_check(str)
+      # path or path:path. both fine.
+      return if str.count(':') <= 1
+      # path:path:ro is also fine (NB: above also implies path:ro)
+      return if str.count(':') == 2 && str.split(':')[-1] == 'ro'
+      raise ExcessColonError, 'Invalid docker volume notation'
+    end
+  end
+end
+
+c = CI::Containment.new(JOB_NAME.gsub('%2F', '/').tr('/', '-'),
                         image: CI::PangeaImage.new(:ubuntu, DIST),
-                        binds: ["#{Dir.pwd}:#{PWD_BIND}"],
+                        binds: binds,
                         privileged: false)
-env = []
-env << 'INSTALLATION=1' if ENV.include?('INSTALLATION')
-env << "TESTS_TO_RUN=#{ENV['TESTS_TO_RUN']}" if ENV['TESTS_TO_RUN']
-env << "BUILD_URL=#{ENV.fetch('BUILD_URL')}"
+
+# Whitelist
+ENV_VARS = %w[
+  BUILD_URL
+  INSTALLATION
+  INSTALLATION_OEM
+  NODE_NAME
+  PLASMA_DESKTOP
+  QEMUVGA
+  TESTS_TO_RUN
+].freeze
+env = {}
+ENV_VARS.each { |x| env[x] = ENV[x] }
+# Also all OPENQA_ vars are forwarded
+ENV.each { |k, v| env[k] = v if k.start_with?('OPENQA_') }
+env = env.map { |k, v| [k, v].join('=') if v }.compact
+
 status_code = c.run(Cmd: ARGV, WorkingDir: PWD_BIND,
                     Env: env,
-                    HostConfig: { Devices: [dev_kvm] })
+                    HostConfig: { Devices: devices })
 exit status_code

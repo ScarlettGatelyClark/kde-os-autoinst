@@ -4,5 +4,7 @@
         <file>qml/RectangleTwiddler.qml</file>
         <file>qml/Twiddler.qml</file>
         <file>qml/Selector.qml</file>
+        <file>qml/Tag.qml</file>
+        <file>qml/PropertyCheckBox.qml</file>
     </qresource>
 </RCC>

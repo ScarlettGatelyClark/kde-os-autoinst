@@ -16,42 +16,50 @@ if (env.TYPE == null) {
   error 'TYPE param not set. Cannot run install test without a type.'
 }
 
-properties([
-  pipelineTriggers([upstream(threshold: 'UNSTABLE',
-                             upstreamProjects: "iso_neon_xenial_${TYPE}_amd64")]),
-  pipelineTriggers([cron('0 H(9-22) * * *')])
-])
+if (env.OPENQA_SERIES == null) {
+  env.OPENQA_SERIES = 'xenial'
+}
 
-fancyNode('master') {
-  try {
-    stage('clone') {
-      git 'https://github.com/apachelogger/kde-os-autoinst'
-    }
-    stage('rake-test') {
-      sh 'rake test'
-    }
-    stage('iso-handover') {
-        if (params.ISO) {
-          echo 'Picking up ISO from trigger job.'
-          sh "cp -v ${params.ISO} incoming.iso"
+// WARNING: DO NOT set properites()!
+// properties() calls override whatever we set in the XML via our tooling
+// templates. That is to say: calling properties() overrides the actual
+// properties from the XML and can have all sorts of side effects.
+// This is contrary to the reference documentation which says properties
+// are preserved for non-multibranch pipelines!
+// If you need properties set do it in pangea-tooling or talk to sitter/bshah
+// about it
+
+lock(inversePrecedence: true, label: 'OPENQA_INSTALL', quantity: 1, variable: 'DEBUG_LOCK') {
+  fancyNode('openqa') {
+    try {
+      stage('clone') {
+        sh 'env'
+        git 'git://anongit.kde.org/sysadmin/neon-openqa.git'
       }
-    }
-    stage('test_installation') {
-      wrap([$class: 'LiveScreenshotBuildWrapper', fullscreenFilename: 'wok/qemuscreenshot/last.png']) {
-        sh 'INSTALLATION=1 bin/contain.rb /workspace/bin/bootstrap.rb'
+      stage('rake-test') {
+        sh 'rake test'
       }
+
+      stage('test_installation') {
+        wrap([$class: 'LiveScreenshotBuildWrapper', fullscreenFilename: 'wok/qemuscreenshot/last.png']) {
+          sh 'INSTALLATION=1 bin/contain.rb /workspace/bin/bootstrap.rb'
+        }
+      }
+
+      if (env.ARCHIVE) {
+        stage('archive-raid') {
+          sh 'bin/archive.rb'
+        }
+      }
+    } finally {
+      dir('metadata') { archiveArtifacts allowEmptyArchive: true, artifacts: '*' }
+      dir('wok') { archiveArtifacts allowEmptyArchive: true, artifacts: 'testresults/*, ulogs/*, video.*, vars.json, slide.html' }
+      junit 'junit/*'
+      sh 'bin/contain.rb chown -R jenkins .'
+      // Make sure we fail if metadata was empty, we didn't assert this earlier
+      // because we want the rest of the post-build to run.
+      sh 'ls metadata/*'
     }
-    stage('archive-raid') {
-      tar = "/var/www/metadata/os-autoinst/${env.TYPE}.tar"
-      sh "tar --exclude=*.iso --exclude=*.iso.* --exclude=*socket --exclude=wok/video.ogv --exclude=wok/ulogs --exclude=wok/testresults -cf ${tar}.new ."
-      sh "gpg2 --armor --detach-sign -o ${tar}.new.sig ${tar}.new"
-      sh "mv -v ${tar}.new ${tar}"
-      sh "mv -v ${tar}.new.sig ${tar}.sig"
-    }
-  } finally {
-    archiveArtifacts 'wok/testresults/*.png, wok/testresults/*.json, wok/ulogs/*, wok/video.ogv'
-    junit 'junit/*'
-    sh 'bin/contain.rb chown -R jenkins .'
   }
 }
 
@@ -59,8 +67,26 @@ def fancyNode(label = null, body) {
   node(label) {
     wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
       wrap([$class: 'TimestamperBuildWrapper']) {
-        body()
+        finally_cleanup { finally_chown { body() } }
       }
+    }
+  }
+}
+
+def finally_chown(body) {
+  try {
+    body()
+  } finally {
+    sh 'bin/contain.rb chown -R jenkins .'
+  }
+}
+
+def finally_cleanup(body) {
+  try {
+    body()
+  } finally {
+    if (!env.NO_CLEAN) {
+      cleanWs()
     }
   }
 }
@@ -70,7 +96,7 @@ def inferType() {
   if (!env.JOB_NAME) {
     return null
   }
-  String[] types = ["useredition", "devedition-gitunstable", "devedition-gitstable"]
+  String[] types = ["useredition", "userltsedition", "devedition-gitunstable", "devedition-gitstable"]
   for (type in types) {
     if (env.JOB_NAME.contains(type)) {
       return type

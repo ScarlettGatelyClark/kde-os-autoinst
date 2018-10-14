@@ -1,17 +1,16 @@
 {
   "area": [
     {
-      "height": 260,
+      "height": 312,
       "match": 95,
       "type": "match",
-      "width": 510,
-      "xpos": 292,
-      "ypos": 142
+      "width": 579,
+      "xpos": 195,
+      "ypos": 79
     }
   ],
   "properties": [],
   "tags": [
-    "calamares-installer-user-complete",
-    "ENV-DISTRI-neon"
+    "calamares-installer-user-complete"
   ]
 }

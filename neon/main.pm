@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017 Harald Sitter <sitter@kde.org>
+# Copyright (C) 2016-2018 Harald Sitter <sitter@kde.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -16,11 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use strict;
 use warnings;
 use testapi;
 use autotest;
 use File::Basename;
+use List::Util qw[min];
 
 BEGIN {
     unshift @INC, dirname(__FILE__) . '/../../lib';
@@ -28,22 +28,149 @@ BEGIN {
 
 $testapi::username = 'user';
 $testapi::password = 'password';
+testapi::set_var('OEM_USERNAME', 'oem');
+testapi::set_var('OEM_PASSWORD', 'oem');
+
+# Special var to check if run in the cloud. This enables tests to only run
+# certain set up bits when run in the cloud rather than a local docker
+# container.
+if (!testapi::get_var("OPENQA_IN_CLOUD")) {
+    testapi::set_var('OPENQA_IN_CLOUD', defined $ENV{'NODE_NAME'});
+}
 
 my $dist = testapi::get_var("CASEDIR") . '/lib/distribution_neon.pm';
 require $dist;
 testapi::set_distribution(distribution_neon->new());
 
-if (testapi::get_var("INSTALLATION")) {
+sub unregister_needle_tags {
+    my ($tag) = @_;
+    my @a = @{needle::tags($tag)};
+    for my $n (@a) { $n->unregister($tag); }
+}
+
+sub cleanup_needles {
+    if (!testapi::get_var('SECUREBOOT')) {
+        unregister_needle_tags('ENV-SECUREBOOT');
+    } else {
+        unregister_needle_tags('ENV-NO-SECUREBOOT');
+    }
+    if (testapi::get_var('UEFI')) {
+        unregister_needle_tags('ENV-BIOS');
+    } else { # BIOS mode
+        unregister_needle_tags('ENV-UEFI');
+    }
+    unless (testapi::get_var('OPENQA_INSTALLATION_OFFLINE')) {
+        unregister_needle_tags('ENV-OFFLINE');
+    }
+    unless (testapi::get_var('OPENQA_INSTALLATION_NONENGLISH')) {
+        unregister_needle_tags('ENV-NONENGLISH');
+    }
+
+    # Drop needles tagged with a different TYPE.
+    # This is a bit inflexible right now but the best to be done at short
+    # notice.
+    my $good_tag = sprintf('ENV-TYPE-%s', testapi::get_var('TYPE'));
+    for my $tag (keys %needle::tags) {
+        if ($tag !~ /ENV-TYPE-/) {
+            next;
+        }
+
+        if ($tag eq $good_tag) {
+            next;
+        }
+
+        # We've found a disqualified tag. Drop all needles that have it.
+        # UNLESS that needle has a qualifier tag (i.e. ENV-TYPE-$TYPE).
+        # qualification > disqualification
+        my @needles = @{needle::tags($tag)};
+        for my $needle (@needles) {
+            if ($needle->has_tag($good_tag)) {
+                next;
+            }
+            $needle->unregister($tag);
+        }
+    }
+
+    # FIXME: workaround for bionic
+    #   to get bionic tests quickly off the ground we lower all match limits to
+    #   70% . this should give reasonable leeway with most font differences.
+    #   additionally TTY is also bugging around and sometimes using wrong colors
+    #   we'll want to gradually increase this to 100% and sort out failures
+    #   as they pop up.
+    if (testapi::get_var('OPENQA_SERIES') eq 'bionic') {
+        # needle::needles is <name,needle> so overlapping names are lost.
+        # Go through tags instead <tag,needles>
+        for my $needles (values %needle::tags) {
+            for my $needle (@{$needles}) {
+                my @areas = $needle->{area};
+                for my $area (@{$needle->{area}}) {
+                    $area->{match} //= 95; # os-autoinst doesn't default this.
+                    $area->{match} = min($area->{match}, 70);
+                }
+            }
+        }
+    }
+
+    # TODO: implement exclusion of newer needles on older systems
+    # Now that we dropped all unsuitable needles. We should restirct the match.
+    # For all needles with our good tag we'll drop all needles that have the
+    # other tags but not our good tag
+    # e.g. n1 [ENV-TYPE-stable, dolphin]
+    #      n2 [dolphin]
+    #   -> we unregister n2 as it is less suitable than n1
+
+}
+
+$needle::cleanuphandler = \&cleanup_needles;
+
+
+if (testapi::get_var("INSTALLATION") && testapi::get_var('OPENQA_PARTITIONING')) {
+    if (testapi::get_var("TYPE") eq 'devedition-gitunstable') {
+        autotest::loadtest('tests/install/calamares_partitioning.pm');
+    } else {
+        # For ubiquity the partitioning test is the regular install test but
+        # it has built-in conditionals for OPENQA_PARTITIONING. This is because
+        # with ubiquity we need to run complete installs to conduct our tests,
+        # so a separate test would be a huge copy pasta. Cala OTOH has
+        # a super simplified much faster test which easily stands up on its own.
+        autotest::loadtest('tests/install_ubiquity.pm');
+    }
+} elsif (testapi::get_var("INSTALLATION")) {
     my %test = (
         'devedition-gitunstable' => "tests/install_calamares.pm",
         '' => "tests/install_ubiquity.pm"
     );
-    autotest::loadtest ($test{$ENV{TYPE}} || $test{''})
+    if (testapi::get_var("INSTALLATION_OEM")) {
+        autotest::loadtest('tests/install/ubiquity_oem.pm');
+    } else {
+        autotest::loadtest($test{testapi::get_var("TYPE")} || $test{''});
+    }
+    autotest::loadtest('tests/install/first_start.pm');
+} elsif (testapi::get_var('OPENQA_SNAP_NAME')) {
+    print("Running a snap test...\n");
+    my $snap_name = testapi::get_var('OPENQA_SNAP_NAME');
+    my $script = "tests/snap/$snap_name.pm";
+    if (-f join('/', testapi::get_var('CASEDIR'), $script)) {
+        print("Found specific test for snap $script\n");
+        autotest::loadtest($script);
+    } else {
+        print("Using generic test for snap $snap_name\n");
+        autotest::loadtest("tests/snap/generic.pm");
+    }
 } elsif (testapi::get_var("TESTS_TO_RUN")) {
-    my $testpaths = testapi::get_var("TESTS_TO_RUN");
-    for my $testpath (@$testpaths) {
+    my @testpaths = split /:/, testapi::get_var("TESTS_TO_RUN");
+    for my $testpath (@testpaths) {
         autotest::loadtest $testpath;
     }
+} elsif (testapi::get_var("PLASMA_DESKTOP")) {
+    autotest::loadtest('tests/plasma/plasma_folder.pm');
+    autotest::loadtest('tests/plasma/plasma_favorite.pm');
+    autotest::loadtest('tests/plasma/plasma_alternatives.pm');
+    # Do not run tests after the lockscreen. We log into a second session
+    # to get away from a switch-user sddm (which has no other means to do so
+    # via the GUI). This may have any number of unfortunate side effects in the
+    # main session (e.g. cache corruption?).
+    autotest::loadtest('tests/plasma/plasma_lockscreen.pm');
 } else {
     testapi::diag 'ERROR FAILURE BAD ERROR no clue what to run!';
     exit 1;

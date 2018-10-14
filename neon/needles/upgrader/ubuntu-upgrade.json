@@ -1,0 +1,40 @@
+{
+  "area": [
+    {
+      "height": 25,
+      "match": 90,
+      "type": "match",
+      "width": 70.85714285714289,
+      "xpos": 678,
+      "ypos": 39
+    },
+    {
+      "height": 22,
+      "match": 90,
+      "type": "match",
+      "width": 121.5,
+      "xpos": 890.5,
+      "ypos": 40
+    },
+    {
+      "height": 25,
+      "match": 90,
+      "type": "match",
+      "width": 16.5,
+      "xpos": 588.5714285714287,
+      "ypos": 64.57142857142858
+    },
+    {
+      "height": 23.5,
+      "match": 90,
+      "type": "match",
+      "width": 143,
+      "xpos": 735,
+      "ypos": 3.5
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "ubuntu-upgrade"
+  ]
+}

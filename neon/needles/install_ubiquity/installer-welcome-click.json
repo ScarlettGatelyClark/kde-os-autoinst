@@ -1,0 +1,17 @@
+{
+  "area": [
+    {
+      "height": 30,
+      "match": 95,
+      "type": "match",
+      "width": 147,
+      "xpos": 460,
+      "ypos": 139
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "installer-welcome-click",
+    "ENV-NONENGLISH"
+  ]
+}

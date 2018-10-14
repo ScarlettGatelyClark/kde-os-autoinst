@@ -1,0 +1,49 @@
+{
+  "area": [
+    {
+      "height": 25,
+      "match": 95,
+      "type": "match",
+      "width": 269,
+      "xpos": 648,
+      "ypos": 39
+    },
+    {
+      "height": 25,
+      "match": 95,
+      "type": "match",
+      "width": 20,
+      "xpos": 608,
+      "ypos": 46
+    },
+    {
+      "height": 36,
+      "match": 95,
+      "type": "match",
+      "width": 96,
+      "xpos": 592,
+      "ypos": 275
+    },
+    {
+      "height": 35,
+      "match": 95,
+      "type": "match",
+      "width": 86,
+      "xpos": 919,
+      "ypos": 275
+    },
+    {
+      "height": 36,
+      "match": 95,
+      "type": "match",
+      "width": 127,
+      "xpos": 788,
+      "ypos": 276
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "ubuntu-upgrade-start"
+  ]
+}
+

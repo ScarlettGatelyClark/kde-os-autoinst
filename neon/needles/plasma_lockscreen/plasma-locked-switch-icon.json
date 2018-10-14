@@ -12,6 +12,8 @@
   "properties": [],
   "tags": [
     "plasma-locked-switch-icon",
-    "ENV-DISTRI-neon"
+    "ENV-TYPE-devedition-gitunstable",
+    "ENV-TYPE-useredition",
+    "ENV-TYPE-devedition-gitstable"
   ]
 }

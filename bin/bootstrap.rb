@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 #
-# Copyright (C) 2016-2017 Harald Sitter <sitter@kde.org>
+# Copyright (C) 2016-2018 Harald Sitter <sitter@kde.org>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -19,13 +19,19 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
+require 'fileutils'
+
 Dir.chdir(File.dirname(__dir__)) # go into working dir
 
-unless File.exist?('/opt/os-autoinst')
+if ENV['OPENQA_OS_AUTOINST_IN_TREE'] || !File.exist?('/opt/os-autoinst')
   # Install into working tree. I am not sure why though. FIXME: install to opt
   require_relative 'install.rb'
   # Only needed when bootstrapped from ubuntu.
   system('gem install jenkins_junit_builder') || raise
+elsif ENV.fetch('NODE_NAME', '') == 'master' ||
+      ENV.fetch('NODE_NAME', '').include?('autoinst')
+  # Make sure master has the latest version in there.
+  Dir.chdir('/opt') { system("#{__dir__}/install.rb") || raise }
 end
 
 system('bin/sync.rb') || raise if ENV['INSTALLATION']

@@ -1,0 +1,18 @@
+{
+  "area": [
+    {
+      "height": 76,
+      "match": 95,
+      "type": "match",
+      "width": 480,
+      "xpos": 74,
+      "ypos": 0
+    }
+  ],
+  "properties": [],
+  "tags": [
+    "grub-800-600",
+    "grub",
+    "ENV-BIOS"
+  ]
+}

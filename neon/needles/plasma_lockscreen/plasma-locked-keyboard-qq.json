@@ -2,24 +2,26 @@
   "area": [
     {
       "height": 43,
-      "match": 95,
+      "match": 90,
       "type": "match",
       "width": 316,
       "xpos": 352,
       "ypos": 370
     },
     {
-      "height": 64,
-      "match": 95,
+      "height": 48,
+      "match": 90,
       "type": "match",
-      "width": 255,
-      "xpos": 43,
-      "ypos": 436
+      "width": 51,
+      "xpos": 64,
+      "ypos": 466
     }
   ],
   "properties": [],
   "tags": [
     "plasma-locked-keyboard-qq",
-    "ENV-DISTRI-neon"
+    "ENV-TYPE-devedition-gitunstable",
+    "ENV-TYPE-useredition",
+    "ENV-TYPE-devedition-gitstable"
   ]
 }

@@ -1,77 +1,83 @@
 env.DIST = 'xenial'
-env.TYPE = 'user'
 env.PWD_BIND = '/workspace'
 
-// def in_container(body) {
-//   container_id = sh(script: "docker create -v ${pwd}:/workspace ubuntu:xenial /bin/bash -c 'while true; do sleep infinity; done'", returnStdout: true).trim()
-//   sh "echo $container_id"
-//   sh "docker start $container_id"
-//   try {
-//     def contain = { args ->
-//       params = args['env'] ? "-e ${args['env']}" : ''
-//       cmd = args['cmd']
-//       sh "echo \"docker exec $params $container_id $cmd\""
-//       sh "docker exec $params $container_id $cmd"
-//     }
-//     body(contain)
-//   } finally {
-//     sh "docker kill $container_id"
-//     sh "docker rm $container_id"
-//   }
-// }
-//   in_container { contain ->
-//     contain(cmd: "xxx")
-  }
-
-cleanNode('os-autoinst') {
-  try {
-    sh 'ifconfig'
-    stage('tree[wget]') {
-      sh "wget -q https://metadata.neon.kde.org/os-autoinst/${env.TYPE}.tar"
-      sh "wget -q https://metadata.neon.kde.org/os-autoinst/${env.TYPE}.tar.sig"
+if (env.TYPE == null) {
+  if (params.TYPE != null) {
+    env.TYPE = params.TYPE
+  } else {
+    type = inferType()
+    if (type != null) {
+      env.TYPE = type
     }
-    parallel(
-      "tree[verify]": {
-        sh 'gpg2 --recv-keys "348C 8651 2066 33FD 983A  8FC4 DEAC EA00 075E 1D76"'
-        sh 'gpg2 --verify ${TYPE}.tar.sig'
-      },
-      "tree[untar]": {
-        sh 'tar -xf ${TYPE}.tar'
-        sh 'ls -lah'
-      }
-    )
-    stage('pull') {
-      sh 'git branch --set-upstream-to=origin/master master'
-      sh 'git pull'
+  }
+}
+
+if (env.TYPE == null) {
+  error 'TYPE param not set. Cannot run install test without a type.'
+}
+
+if (env.TESTS_TO_RUN == null && env.PLASMA_DESKTOP == null && env.OPENQA_SNAP_NAME == null) {
+  error 'TESTS_TO_RUN param not set. Cannot run nothing.'
+}
+
+fancyNode('openqa') {
+  try {
+    stage('clone') {
+      checkout scm
     }
     stage('rake-test') {
       sh 'rake test'
     }
-    stage('test-plasma_folder') {
-      sh 'TESTS_TO_RUN=tests/plasma_folder.pm bin/contain.rb /workspace/bin/bootstrap.rb'
+    stage('test') {
+      wrap([$class: 'LiveScreenshotBuildWrapper', fullscreenFilename: 'wok/qemuscreenshot/last.png']) {
+        sh 'bin/contain.rb /workspace/bin/bootstrap.rb'
+      }
     }
   } finally {
-    archiveArtifacts 'wok/testresults/*.png, wok/testresults/*.json, wok/ulogs/*, wok/video.ogv, wok/vars.json'
+    dir('metadata') { archiveArtifacts '*' }
+    dir('wok') { archiveArtifacts allowEmptyArchive: true, artifacts: 'testresults/*, ulogs/*, video.*, vars.json, slide.html' }
     junit 'junit/*'
-    sh 'bin/contain.rb chown -R jenkins . || true'
   }
 }
 
-def cleanNode(label = null, body) {
+def fancyNode(label = null, body) {
   node(label) {
-    try {
-// Supremely bugged causing excessive slowdown in jenkins. not sure why.
-// <org.jenkinsci.plugins.livescreenshot.LiveScreenshotBuildWrapper plugin="livescreenshot@1.4.5">
-// <fullscreenFilename>screenshot.png</fullscreenFilename>
-// <thumbnailFilename>screenshot-thumb.png</thumbnailFilename>
-// </org.jenkinsci.plugins.livescreenshot.LiveScreenshotBuildWrapper>
-      wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
-        wrap([$class: 'TimestamperBuildWrapper']) {
-          body()
-        }
+    wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
+      wrap([$class: 'TimestamperBuildWrapper']) {
+        finally_cleanup { finally_chown { body() } }
       }
-    } finally {
+    }
+  }
+}
+
+def finally_chown(body) {
+  try {
+    body()
+  } finally {
+    sh 'bin/contain.rb chown -R jenkins .'
+  }
+}
+
+def finally_cleanup(body) {
+  try {
+    body()
+  } finally {
+    if (!env.NO_CLEAN) {
       cleanWs()
     }
   }
+}
+
+// When not called from an ISO build we'll want to infer the type from our own name.
+def inferType() {
+  if (!env.JOB_NAME) {
+    return null
+  }
+  String[] types = ["useredition", "userltsedition", "devedition-gitunstable", "devedition-gitstable"]
+  for (type in types) {
+    if (env.JOB_NAME.contains(type)) {
+      return type
+    }
+  }
+  return null
 }
